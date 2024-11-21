@@ -6,21 +6,24 @@
   <title>360 Virtual Tour with Wormhole Transition</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum/build/pannellum.css">
   <style>
-
+    /* Panorama Container: Full-Screen View */
     #panorama-container {
       position: relative;
-      width: 100%;
-      height: 500px;
+      width: 100vw; /* Full width of the viewport */
+      height: 100vh; /* Full height of the viewport */
       overflow: hidden;
     }
-
+  
     /* Panorama Viewer */
     #panorama {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
       transition: transform 1s ease, filter 1s ease;
     }
-
+  
     /* Crossfade Overlay */
     #transition-overlay {
       position: absolute;
@@ -30,50 +33,20 @@
       height: 100%;
       background: rgba(0, 0, 0, 0.5); /* Semi-transparent overlay */
       opacity: 0;
-      z-index: 10; /* Above panorama but below the viewer during interaction */
+      z-index: 10;
       pointer-events: none; /* Allow interaction by default */
       transition: opacity 1s ease;
     }
-    /* Panorama Container: Default 16:9 Ratio */
-#panorama-container {
-  position: relative;
-  width: 100%;
-  height: 0;
-  padding-top: 56.25%; /* 16:9 aspect ratio */
-  overflow: hidden;
-}
-
-/* Panorama Viewer */
-#panorama {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  transition: transform 1s ease, filter 1s ease;
-}
-
-/* Overlay remains full-screen */
-#transition-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5); /* Semi-transparent overlay */
-  opacity: 0;
-  z-index: 10;
-  pointer-events: none; /* Allow interaction by default */
-  transition: opacity 1s ease;
-}
-
-/* For narrow screens, apply TikTok-like 9:16 ratio */
-@media (max-width: 600px) {
-  #panorama-container {
-    padding-top: 177.78%; /* 9:16 aspect ratio */
-  }
-}
+  
+    /* For narrow screens, ensure proper scaling */
+    @media (max-width: 600px) {
+      #panorama-container {
+        width: 100vw;
+        height: 100vh;
+      }
+    }
   </style>
+  
 </head>
 <body>
   <div id="panorama-container">
@@ -82,102 +55,139 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pannellum/build/pannellum.js"></script>
-  <script>
-    // Fake API Data
-    const virtualTourData = [
-   
-
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script type="module">
+    
+    const { createClient } = supabase
+    // Initialize Supabase client
+    const supabaseUrl = 'https://pdkebhnxoigzhhmdvkrt.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBka2ViaG54b2lnemhobWR2a3J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI0MzY2NDQsImV4cCI6MjAxODAxMjY0NH0.zmBGjlfVQyZOrNCeW8io3VkVZdM34mw4w20yv6sehe8';
+    const _supabase = createClient(supabaseUrl, supabaseAnonKey);
   
+    // Fetch data from the "tour_360" table
+    async function fetchTourData() {
+      try {
+        let { data: tour_360, error } = await _supabase
+          .from('tour_360')
+          .select('*');
+  
+        if (error) {
+          console.error('Error fetching tour data:', error);
+          return [];
+        }
+  
+        console.log('Fetched tour data:', tour_360); // Logging the response
+          // Parse the JSON data from the response
+      const parsedData = tour_360
+        .map((item) => item.jsonData) // Extract the jsonData property from each entry
+        .flat(); // Flatten the resulting arrays into a single array
+
+      console.log('Parsed Virtual Tour Data:', parsedData);
+      return parsedData;
+   
+      } catch (err) {
+        console.error('Unexpected error:', err);
+        return [];
+      }
+    }
+  
+    // Sample fallback data (used in case Supabase fetch fails)
+    const fallbackVirtualTourData = [
       {
         id: 1,
-        url: "./image1.jpg",
+        url: './image1.jpg',
         customHotspots: [
           {
             pitch: 0,
             yaw: 55,
-            type: "info",
-            text: "Get Inside",
+            type: 'info',
+            text: 'Get Inside',
             transitionToImageId: 2
           }
         ]
       },
       {
         id: 2,
-        url: "./image2.jpg",
+        url: './image2.jpg',
         customHotspots: [
           {
             pitch: 0,
             yaw: -60,
-            type: "info",
-            text: "Go outside",
+            type: 'info',
+            text: 'Go outside',
             transitionToImageId: 1
           },
           {
             pitch: 15,
             yaw: 40,
-            type: "info",
-            text: "Go Upstairs",
+            type: 'info',
+            text: 'Go Upstairs',
             transitionToImageId: 3
           }
         ]
       },
-    
       {
         id: 3,
-        url:"./image3.jpg",
+        url: './image3.jpg',
         customHotspots: [
           {
             pitch: -30,
             yaw: -110,
-            type: "info",
-            text: "Go DownStairs",
+            type: 'info',
+            text: 'Go DownStairs',
             transitionToImageId: 2
           },
           {
             pitch: -15,
             yaw: 0,
-            type: "info",
-            text: "Go Inside",
+            type: 'info',
+            text: 'Go Inside',
             transitionToImageId: 4
           }
         ]
       },
-    
       {
         id: 4,
-        url:"./image4.jpg",
+        url: './image4.jpg',
         customHotspots: [
           {
             pitch: -5,
             yaw: -70,
-            type: "info",
-            text: "Go Inside",
+            type: 'info',
+            text: 'Go Inside',
             transitionToImageId: 5
           },
           {
             pitch: -5,
             yaw: -170,
-            type: "info",
-            text: "Go Out",
+            type: 'info',
+            text: 'Go Out',
             transitionToImageId: 3
           }
         ]
       },
       {
         id: 5,
-        url:"./image5.jpg",
+        url: './image5.jpg',
         customHotspots: [
-        {
+          {
             pitch: 0,
             yaw: -30,
-            type: "info",
-            text: "Return Back",
+            type: 'info',
+            text: 'Return Back',
             transitionToImageId: 4
           }
         ]
-      },
+      }
     ];
-
+    let virtualTourData;
+    // Main execution
+   await (async () => {
+       virtualTourData = await fetchTourData();
+     
+      console.log('Virtual tour data in use:', virtualTourData.length ? virtualTourData : fallbackVirtualTourData);
+    })();
+   
     let viewer;
 
     function loadImageWithWormholeTransition(imageData) {
@@ -223,7 +233,7 @@
                     }
                 });
             });
-        }, 500);
+        }, 1500);
         
         // Reset zoom and blur
         panoramaElement.style.transform = "scale(1)";
