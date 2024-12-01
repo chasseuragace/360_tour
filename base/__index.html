@@ -23,6 +23,7 @@
         #playground {
             flex: 1;
             position: relative;
+            background: #000;
             display: flex;
             flex-direction: column;
         }
@@ -31,19 +32,20 @@
             flex: 1;
             position: relative;
             display: flex;
-            flex-direction: row;
-            gap: 10px;
+            justify-content: space-between; /* Aligns the preview with the sidebar */
         }
 
         #panorama {
-            width: 50%;
+            width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
         #pannellum-container {
-            width: 50%;
+            flex: 1;
             height: 100%;
+            background: #000;
+            position: relative;
         }
 
         .hotspot {
@@ -102,8 +104,8 @@
 
     <div id="playground">
         <div id="panorama-container">
-            <img id="panorama" />
-            <div id="pannellum-container"></div>
+            <div id="pannellum-container"></div> <!-- This is where Pannellum will render the 360° panorama -->
+            <div id="hotspot-container"></div>
         </div>
 
         <div class="controls">
@@ -124,7 +126,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
-    <script>
+      <script>
         class VirtualTourEditor {
             constructor() {
                 this.supabase = this.initSupabase();
@@ -140,7 +142,6 @@
                 this.bindEvents();
             }
 
-           
             initSupabase() {
                 const supabaseUrl = 'https://pdkebhnxoigzhhmdvkrt.supabase.co';
                 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBka2ViaG54b2lnemhobWR2a3J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI0MzY2NDQsImV4cCI6MjAxODAxMjY0NH0.zmBGjlfVQyZOrNCeW8io3VkVZdM34mw4w20yv6sehe8';
@@ -151,14 +152,14 @@
                 this.elements = {
                     imageList: document.getElementById('image-list'),
                     panorama: document.getElementById('panorama'),
-                    pannellumContainer: document.getElementById('pannellum-container'),
                     hotspotContainer: document.getElementById('hotspot-container'),
                     hotspotList: document.getElementById('hotspot-list'),
                     pitchSlider: document.getElementById('pitch-slider'),
                     yawSlider: document.getElementById('yaw-slider'),
                     pitchValue: document.getElementById('pitch-value'),
                     yawValue: document.getElementById('yaw-value'),
-                    updateHotspotBtn: document.getElementById('update-hotspot')
+                    updateHotspotBtn: document.getElementById('update-hotspot'),
+                    pannellumContainer: document.getElementById('pannellum-container')
                 };
             }
 
@@ -216,15 +217,44 @@
 
             selectImage(image) {
                 this.state.currentImage = image;
-                this.elements.panorama.src = image.url;
+                this.loadPanorama(image.url);
                 this.loadHotspots(image.customHotspots || []);
-                this.loadPannellum(image.url);  // Load 360 view in Pannellum viewer
+            }
+
+            loadPanorama(imageUrl) {
+                const viewer = pannellum.viewer('pannellum-container', {
+                    type: 'equirectangular',
+                    panorama: imageUrl,
+                    autoLoad: true,
+                    showControls: false,
+                    hotSpots: [] // We'll add hotspots dynamically
+                });
+
+                // Update the current panorama viewer
+                this.viewer = viewer;
             }
 
             loadHotspots(hotspots) {
                 this.state.hotspots = hotspots;
                 this.renderHotspots();
                 this.renderHotspotList();
+                this.addHotspotsToViewer();
+            }
+
+            addHotspotsToViewer() {
+                if (this.viewer && this.state.hotspots.length) {
+                    const hotSpots = this.state.hotspots.map(hotspot => ({
+                        pitch: hotspot.pitch,
+                        yaw: hotspot.yaw,
+                        cssClass: 'hotspot',
+                        createTooltipFunc: function() {
+                            return hotspot.text;
+                        },
+                        createTooltipArgs: []
+                    }));
+
+                    this.viewer.setHotSpots(hotSpots);
+                }
             }
 
             renderHotspots() {
@@ -255,72 +285,74 @@
                 const container = this.elements.hotspotContainer;
                 const image = this.elements.panorama;
 
-                // Ensure the hotspot is positioned relative to the container
                 element.style.position = 'absolute';
 
-                // Calculate horizontal position (yaw)
                 const xPercent = ((hotspot.yaw + 180) / 360) * 100;
-                
-                // Calculate vertical position (pitch)
                 const yPercent = ((90 - hotspot.pitch) / 180) * 100;
 
-                // Set the position using percentage
                 element.style.left = `${xPercent}%`;
                 element.style.top = `${yPercent}%`;
-
-                // Ensure the hotspot is centered on its point
                 element.style.transform = 'translate(-50%, -50%)';
-            }
-
-            loadPannellum(imageUrl) {
-                if (this.pannellumViewer) {
-                    this.pannellumViewer.destroy();
-                }
-
-                this.pannellumViewer = pannellum.viewer(this.elements.pannellumContainer, {
-                    type: 'equirectangular',
-                    panorama: imageUrl,
-                    autoLoad: true,
-                    hotSpots: this.state.hotspots.map(hotspot => ({
-                        pitch: hotspot.pitch,
-                        yaw: hotspot.yaw,
-                        type: 'info',
-                        text: hotspot.text,
-                        URL: hotspot.url
-                    }))
-                });
-            }
-
-            updateSliderValue(type, event) {
-                const value = event.target.value;
-                if (type === 'pitch') {
-                    this.elements.pitchValue.textContent = value;
-                } else if (type === 'yaw') {
-                    this.elements.yawValue.textContent = value;
-                }
             }
 
             selectHotspot(hotspot) {
                 this.state.selectedHotspot = hotspot;
-                this.renderHotspotList();  // To highlight the selected hotspot
+                
+                document.querySelectorAll('.hotspot, .hotspot-item').forEach(el => {
+                    el.classList.remove('selected');
+                });
+
+                this.elements.pitchSlider.value = hotspot.pitch;
+                this.elements.yawSlider.value = hotspot.yaw;
+                this.elements.pitchValue.textContent = hotspot.pitch;
+                this.elements.yawValue.textContent = hotspot.yaw;
+            }
+
+            updateSliderValue(type) {
+                const slider = type === 'pitch' ? this.elements.pitchSlider : this.elements.yawSlider;
+                const valueDisplay = type === 'pitch' ? this.elements.pitchValue : this.elements.yawValue;
+                
+                valueDisplay.textContent = slider.value;
+                
+                if (this.state.selectedHotspot) {
+                    this.state.selectedHotspot[type] = parseFloat(slider.value);
+                    this.updateHotspotPosition();
+                }
+            }
+
+            updateHotspotPosition() {
+                const hotspots = document.querySelectorAll('.hotspot');
+                const hotspotIndex = this.state.hotspots.findIndex(h => h === this.state.selectedHotspot);
+
+                if (hotspotIndex !== -1) {
+                    const hotspotElement = hotspots[hotspotIndex];
+                    this.positionHotspot(hotspotElement, this.state.selectedHotspot);
+                }
+
+                this.addHotspotsToViewer();
             }
 
             updateHotspot() {
                 if (!this.state.selectedHotspot) return;
 
-                const pitch = this.elements.pitchSlider.value;
-                const yaw = this.elements.yawSlider.value;
+                const pitch = parseFloat(this.elements.pitchSlider.value);
+                const yaw = parseFloat(this.elements.yawSlider.value);
+
                 this.state.selectedHotspot.pitch = pitch;
                 this.state.selectedHotspot.yaw = yaw;
 
-                // Re-render the hotspots and update the Pannellum viewer
-                this.renderHotspots();
-                this.loadPannellum(this.state.currentImage.url);
+                this.updateHotspotPosition();
+            }
+
+            init() {
+                this.loadTours();
             }
         }
 
-        const editor = new VirtualTourEditor();
-        editor.loadTours();
+        document.addEventListener('DOMContentLoaded', () => {
+            const editor = new VirtualTourEditor();
+            editor.init();
+        });
     </script>
 </body>
 </html>

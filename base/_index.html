@@ -23,6 +23,7 @@
         #playground {
             flex: 1;
             position: relative;
+            background: #000;
             display: flex;
             flex-direction: column;
         }
@@ -30,20 +31,13 @@
         #panorama-container {
             flex: 1;
             position: relative;
-            display: flex;
-            flex-direction: row;
-            gap: 10px;
+            overflow: hidden;
         }
 
         #panorama {
-            width: 50%;
+            width: 100%;
             height: 100%;
             object-fit: cover;
-        }
-
-        #pannellum-container {
-            width: 50%;
-            height: 100%;
         }
 
         .hotspot {
@@ -103,7 +97,7 @@
     <div id="playground">
         <div id="panorama-container">
             <img id="panorama" />
-            <div id="pannellum-container"></div>
+            <div id="hotspot-container"></div>
         </div>
 
         <div class="controls">
@@ -122,8 +116,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
     <script>
         class VirtualTourEditor {
             constructor() {
@@ -140,7 +132,6 @@
                 this.bindEvents();
             }
 
-           
             initSupabase() {
                 const supabaseUrl = 'https://pdkebhnxoigzhhmdvkrt.supabase.co';
                 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBka2ViaG54b2lnemhobWR2a3J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI0MzY2NDQsImV4cCI6MjAxODAxMjY0NH0.zmBGjlfVQyZOrNCeW8io3VkVZdM34mw4w20yv6sehe8';
@@ -151,7 +142,6 @@
                 this.elements = {
                     imageList: document.getElementById('image-list'),
                     panorama: document.getElementById('panorama'),
-                    pannellumContainer: document.getElementById('pannellum-container'),
                     hotspotContainer: document.getElementById('hotspot-container'),
                     hotspotList: document.getElementById('hotspot-list'),
                     pitchSlider: document.getElementById('pitch-slider'),
@@ -218,7 +208,6 @@
                 this.state.currentImage = image;
                 this.elements.panorama.src = image.url;
                 this.loadHotspots(image.customHotspots || []);
-                this.loadPannellum(image.url);  // Load 360 view in Pannellum viewer
             }
 
             loadHotspots(hotspots) {
@@ -252,75 +241,93 @@
             }
 
             positionHotspot(element, hotspot) {
-                const container = this.elements.hotspotContainer;
-                const image = this.elements.panorama;
+    const container = this.elements.hotspotContainer;
+    const image = this.elements.panorama;
 
-                // Ensure the hotspot is positioned relative to the container
-                element.style.position = 'absolute';
+    // Ensure the hotspot is positioned relative to the container
+    element.style.position = 'absolute';
 
-                // Calculate horizontal position (yaw)
-                const xPercent = ((hotspot.yaw + 180) / 360) * 100;
-                
-                // Calculate vertical position (pitch)
-                const yPercent = ((90 - hotspot.pitch) / 180) * 100;
+    // Calculate horizontal position (yaw)
+    // Map yaw from [-180, 180] to [0, 100]
+    const xPercent = ((hotspot.yaw + 180) / 360) * 100;
+    
+    // Calculate vertical position (pitch)
+    // Map pitch from [-90, 90] to [0, 100], inverting to match top-down coordinate system
+    const yPercent = ((90 - hotspot.pitch) / 180) * 100;
 
-                // Set the position using percentage
-                element.style.left = `${xPercent}%`;
-                element.style.top = `${yPercent}%`;
+    // Set the position using percentage
+    element.style.left = `${xPercent}%`;
+    element.style.top = `${yPercent}%`;
 
-                // Ensure the hotspot is centered on its point
-                element.style.transform = 'translate(-50%, -50%)';
-            }
-
-            loadPannellum(imageUrl) {
-                if (this.pannellumViewer) {
-                    this.pannellumViewer.destroy();
-                }
-
-                this.pannellumViewer = pannellum.viewer(this.elements.pannellumContainer, {
-                    type: 'equirectangular',
-                    panorama: imageUrl,
-                    autoLoad: true,
-                    hotSpots: this.state.hotspots.map(hotspot => ({
-                        pitch: hotspot.pitch,
-                        yaw: hotspot.yaw,
-                        type: 'info',
-                        text: hotspot.text,
-                        URL: hotspot.url
-                    }))
-                });
-            }
-
-            updateSliderValue(type, event) {
-                const value = event.target.value;
-                if (type === 'pitch') {
-                    this.elements.pitchValue.textContent = value;
-                } else if (type === 'yaw') {
-                    this.elements.yawValue.textContent = value;
-                }
-            }
+    // Ensure the hotspot is centered on its point
+    element.style.transform = 'translate(-50%, -50%)';
+}
 
             selectHotspot(hotspot) {
                 this.state.selectedHotspot = hotspot;
-                this.renderHotspotList();  // To highlight the selected hotspot
+                
+                // Reset UI
+                document.querySelectorAll('.hotspot, .hotspot-item').forEach(el => {
+                    el.classList.remove('selected');
+                });
+
+                // Update sliders
+                this.elements.pitchSlider.value = hotspot.pitch;
+                this.elements.yawSlider.value = hotspot.yaw;
+                this.elements.pitchValue.textContent = hotspot.pitch;
+                this.elements.yawValue.textContent = hotspot.yaw;
             }
+
+            updateSliderValue(type) {
+                const slider = type === 'pitch' ? this.elements.pitchSlider : this.elements.yawSlider;
+                const valueDisplay = type === 'pitch' ? this.elements.pitchValue : this.elements.yawValue;
+                
+                valueDisplay.textContent = slider.value;
+                
+                if (this.state.selectedHotspot) {
+                    this.state.selectedHotspot[type] = parseFloat(slider.value);
+                    this.updateHotspotPosition();
+                }
+            }
+
+            updateHotspotPosition() {
+    // Find the specific hotspot element corresponding to the selected hotspot
+    const hotspots = document.querySelectorAll('.hotspot');
+    
+    // Find the index of the selected hotspot in the state
+    const hotspotIndex = this.state.hotspots.findIndex(
+        h => h === this.state.selectedHotspot
+    );
+
+    if (hotspotIndex !== -1) {
+        const hotspotElement = hotspots[hotspotIndex];
+        this.positionHotspot(hotspotElement, this.state.selectedHotspot);
+    }
+
+    this.renderHotspotList();
+}
 
             updateHotspot() {
                 if (!this.state.selectedHotspot) return;
 
-                const pitch = this.elements.pitchSlider.value;
-                const yaw = this.elements.yawSlider.value;
+                const pitch = parseFloat(this.elements.pitchSlider.value);
+                const yaw = parseFloat(this.elements.yawSlider.value);
+
                 this.state.selectedHotspot.pitch = pitch;
                 this.state.selectedHotspot.yaw = yaw;
 
-                // Re-render the hotspots and update the Pannellum viewer
-                this.renderHotspots();
-                this.loadPannellum(this.state.currentImage.url);
+                this.updateHotspotPosition();
+            }
+
+            init() {
+                this.loadTours();
             }
         }
 
-        const editor = new VirtualTourEditor();
-        editor.loadTours();
+        document.addEventListener('DOMContentLoaded', () => {
+            const editor = new VirtualTourEditor();
+            editor.init();
+        });
     </script>
 </body>
 </html>
