@@ -37,6 +37,34 @@
       pointer-events: none; /* Allow interaction by default */
       transition: opacity 1s ease;
     }
+
+    /* Loading Indicator */
+    #loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: rgb(153, 62, 62);
+      font-size: 1.5rem;
+      z-index: 100;
+   
+    }
+
+    #loading-indicator .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   
     /* For narrow screens, ensure proper scaling */
     @media (max-width: 600px) {
@@ -46,207 +74,148 @@
       }
     }
   </style>
-  
 </head>
 <body>
   <div id="panorama-container">
     <div id="transition-overlay"></div>
     <div id="panorama"></div>
+   
   </div>
+  <div id="loading-indicator">
+    <div class="spinner"></div>
+    <div>Loading...</div>
+  </div>  
 
   <script src="https://cdn.jsdelivr.net/npm/pannellum/build/pannellum.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <script type="module">
-    
-    const { createClient } = supabase
-    // Initialize Supabase client
+    const { createClient } = supabase;
     const supabaseUrl = 'https://pdkebhnxoigzhhmdvkrt.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBka2ViaG54b2lnemhobWR2a3J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI0MzY2NDQsImV4cCI6MjAxODAxMjY0NH0.zmBGjlfVQyZOrNCeW8io3VkVZdM34mw4w20yv6sehe8';
     const _supabase = createClient(supabaseUrl, supabaseAnonKey);
-  
-    // Fetch data from the "tour_360" table
+
+    const loadingIndicator = document.getElementById('loading-indicator');
+
     async function fetchTourData() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const index = parseInt(urlParams.get('index'), 10) || 0;
+      const reference = urlParams.get('reference');
+
       try {
-        let { data: tour_360, error } = await _supabase
+        const { data: tour_360, error } = await _supabase
           .from('tour_360')
-          .select('*');
-  
+          .select('*')
+          .order('id', { ascending: true });
+
         if (error) {
           console.error('Error fetching tour data:', error);
           return [];
         }
-  
-        console.log('Fetched tour data:', tour_360); // Logging the response
-          // Parse the JSON data from the response
-      const parsedData = tour_360
-        .map((item) => item.jsonData) // Extract the jsonData property from each entry
-        .flat(); // Flatten the resulting arrays into a single array
 
-      console.log('Parsed Virtual Tour Data:', parsedData);
-      return parsedData;
-   
+        console.log('Fetched tour data:', tour_360);
+
+        let selectedData;
+        if (reference) {
+          const matchByReference = tour_360.find((item) => item.reference === reference);
+          if (matchByReference) {
+            selectedData = matchByReference.jsonData || [];
+          }
+        }
+
+        if (!selectedData) {
+          if (index < 0 || index >= tour_360.length) {
+            console.error('Invalid index. Falling back to index 0.');
+            selectedData = tour_360[0]?.jsonData || [];
+          } else {
+            selectedData = tour_360[index]?.jsonData || [];
+          }
+        }
+
+        console.log('Selected Virtual Tour Data:', selectedData);
+
+        // Show loading indicator and preload all URLs
+        loadingIndicator.style.display = 'block';
+        const preloadPromises = selectedData
+          .filter((item) => item.url)
+          .map((item) => preloadImage(item.url));
+
+        await Promise.all(preloadPromises);
+        console.log('All URLs preloaded.');
+        loadingIndicator.style.display = 'none';
+
+        return selectedData;
       } catch (err) {
         console.error('Unexpected error:', err);
         return [];
       }
     }
-  
-    // Sample fallback data (used in case Supabase fetch fails)
-    const fallbackVirtualTourData = [
-      {
-        id: 1,
-        url: './image1.jpg',
-        customHotspots: [
-          {
-            pitch: 0,
-            yaw: 55,
-            type: 'info',
-            text: 'Get Inside',
-            transitionToImageId: 2
-          }
-        ]
-      },
-      {
-        id: 2,
-        url: './image2.jpg',
-        customHotspots: [
-          {
-            pitch: 0,
-            yaw: -60,
-            type: 'info',
-            text: 'Go outside',
-            transitionToImageId: 1
-          },
-          {
-            pitch: 15,
-            yaw: 40,
-            type: 'info',
-            text: 'Go Upstairs',
-            transitionToImageId: 3
-          }
-        ]
-      },
-      {
-        id: 3,
-        url: './image3.jpg',
-        customHotspots: [
-          {
-            pitch: -30,
-            yaw: -110,
-            type: 'info',
-            text: 'Go DownStairs',
-            transitionToImageId: 2
-          },
-          {
-            pitch: -15,
-            yaw: 0,
-            type: 'info',
-            text: 'Go Inside',
-            transitionToImageId: 4
-          }
-        ]
-      },
-      {
-        id: 4,
-        url: './image4.jpg',
-        customHotspots: [
-          {
-            pitch: -5,
-            yaw: -70,
-            type: 'info',
-            text: 'Go Inside',
-            transitionToImageId: 5
-          },
-          {
-            pitch: -5,
-            yaw: -170,
-            type: 'info',
-            text: 'Go Out',
-            transitionToImageId: 3
-          }
-        ]
-      },
-      {
-        id: 5,
-        url: './image5.jpg',
-        customHotspots: [
-          {
-            pitch: 0,
-            yaw: -30,
-            type: 'info',
-            text: 'Return Back',
-            transitionToImageId: 4
-          }
-        ]
-      }
-    ];
+
+    function preloadImage(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = url;
+        img.onload = () => resolve(url);
+        img.onerror = () => reject(`Failed to preload image: ${url}`);
+      });
+    }
+
     let virtualTourData;
-    // Main execution
-   await (async () => {
-       virtualTourData = await fetchTourData();
-     
-      console.log('Virtual tour data in use:', virtualTourData.length ? virtualTourData : fallbackVirtualTourData);
+
+    await (async () => {
+      virtualTourData = await fetchTourData();
+      console.log('Virtual tour data in use:', virtualTourData);
     })();
-   
+
     let viewer;
 
     function loadImageWithWormholeTransition(imageData) {
-    const overlay = document.getElementById('transition-overlay');
-    const panoramaElement = document.getElementById('panorama');
+      const overlay = document.getElementById('transition-overlay');
+      const panoramaElement = document.getElementById('panorama');
 
-    // Radial blur transition effect
-    overlay.style.pointerEvents = "all";
-    overlay.style.opacity = 0.7;
-    
-    // Zoom with radial blur effect (no rotation)
-    panoramaElement.style.transform = "scale(2)";
-    panoramaElement.style.filter = "blur(20px) brightness(0.5)";
-    
-    setTimeout(() => {
+      overlay.style.pointerEvents = "all";
+      overlay.style.opacity = 0.7;
+      panoramaElement.style.transform = "scale(2)";
+      panoramaElement.style.filter = "blur(20px) brightness(0.5)";
+      
+      setTimeout(() => {
         if (viewer) {
-            viewer.destroy();
+          viewer.destroy();
         }
-        
+
         viewer = pannellum.viewer('panorama', {
-            type: 'equirectangular',
-            panorama: imageData.url,
-            autoLoad: true,
-            pitch: 0,
-            yaw: 0,
-            hfov: 110
+          type: 'equirectangular',
+          panorama: imageData.url,
+          autoLoad: true,
+          pitch: 0,
+          yaw: 0,
+          hfov: 110
         });
-        
+
         setTimeout(() => {
-            imageData.customHotspots.forEach(hotspot => {
-                viewer.addHotSpot({
-                    pitch: hotspot.pitch,
-                    yaw: hotspot.yaw,
-                    type: hotspot.type,
-                    text: hotspot.text,
-                    clickHandlerFunc: () => {
-                        const nextImage = virtualTourData.find(
-                            img => img.id === hotspot.transitionToImageId
-                        );
-                        if (nextImage) {
-                            loadImageWithWormholeTransition(nextImage);
-                        }
-                    }
-                });
+          imageData.customHotspots.forEach(hotspot => {
+            viewer.addHotSpot({
+              pitch: hotspot.pitch,
+              yaw: hotspot.yaw,
+              type: hotspot.type,
+              text: hotspot.text,
+              clickHandlerFunc: () => {
+                const nextImage = virtualTourData.find(img => img.id === hotspot.transitionToImageId);
+                if (nextImage) {
+                  loadImageWithWormholeTransition(nextImage);
+                }
+              }
             });
+          });
         }, 1500);
-        
-        // Reset zoom and blur
+
         panoramaElement.style.transform = "scale(1)";
         panoramaElement.style.filter = "blur(0px) brightness(1)";
         overlay.style.opacity = 0;
-        
-        setTimeout(() => {
-            overlay.style.pointerEvents = "none";
-        }, 1000);
-    }, 1000);
-}
-    // Start the tour with the first image
-    loadImageWithWormholeTransition(virtualTourData[0]);
+        setTimeout(() => overlay.style.pointerEvents = "none", 1000);
+      }, 1000);
+    }
+
+    loadImageWithWormholeTransition(virtualTourData.find((e) => e.id === 1));
   </script>
 </body>
 </html>
