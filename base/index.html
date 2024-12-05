@@ -50,6 +50,27 @@
       z-index: 100;
    
     }
+    #controls {
+        position: absolute;
+        bottom: 0;
+        z-index: 2;
+        text-align: center;
+        width: 100%;
+        padding-bottom: 3px;
+        pointer-events: none;
+    }
+    .ctrl {
+        padding: 8px 5px;
+        width: 30px;
+        text-align: center;
+        background: rgba(200, 200, 200, 0.8);
+        display: inline-block;
+        cursor: pointer;
+        pointer-events: auto;
+    }
+    .ctrl:hover {
+        background: rgba(200, 200, 200, 1);
+    }
 
     #loading-indicator .spinner {
       border: 4px solid rgba(255, 255, 255, 0.3);
@@ -60,25 +81,76 @@
       animation: spin 1s linear infinite;
       margin: 10px auto;
     }
+.custom-hotspot {
+  height: 50px;
+  width: 50px;
+  background-image: url('./arrow.png');
+  transform: rotate(180deg);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: auto;
+  z-index: 1000;
+  transform-style: preserve-3d;
+  transform: translateZ(100px) rotate(180deg);
+}
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  
-    /* For narrow screens, ensure proper scaling */
-    @media (max-width: 600px) {
-      #panorama-container {
-        width: 100vw;
-        height: 100vh;
-      }
-    }
-  </style>
+div.custom-tooltip span {
+  visibility: hidden;
+  position: absolute;
+  border-radius: 3px;
+  background-color: #fff;
+  color: #000;
+  text-align: center;
+  max-width: 200px;
+  padding: 5px 10px;
+  margin-left: -220px;
+  cursor: default;
+  z-index: 1001;
+}
+div.custom-tooltip span{
+  visibility: visible;
+}
+div.custom-tooltip:hover span:after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-width: 10px;
+  border-style: solid;
+  border-color: #fff transparent transparent transparent;
+  bottom: -20px;
+  left: -10px;
+  margin: 0 50%;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* For narrow screens, ensure proper scaling */
+@media (max-width: 600px) {
+  #panorama-container {
+    width: 100vw;
+    height: 100vh;
+  }
+}
+</style>
 </head>
-<body>
+<body style="margin:0;">
   <div id="panorama-container">
     <div id="transition-overlay"></div>
     <div id="panorama"></div>
+<div id="controls">
+        <div class="ctrl" id="pan-up">&#9650;</div>
+        <div class="ctrl" id="pan-down">&#9660;</div>
+        <div class="ctrl" id="pan-left">&#9664;</div>
+        <div class="ctrl" id="pan-right">&#9654;</div>
+        <div class="ctrl" id="zoom-in">&plus;</div>
+        <div class="ctrl" id="zoom-out">&minus;</div>
+        <div class="ctrl" id="fullscreen">&#x2922;</div>
+    </div>
    
   </div>
   <div id="loading-indicator">
@@ -183,27 +255,33 @@
         }
 
         viewer = pannellum.viewer('panorama', {
+                    // autoRotate: -2,
+                    compass: true,
+                    showControls: true,
           type: 'equirectangular',
           panorama: imageData.url,
           autoLoad: true,
           pitch: 0,
           yaw: 0,
           hfov: 110
+          
         });
 
         setTimeout(() => {
           imageData.customHotspots.forEach(hotspot => {
-            viewer.addHotSpot({
-              pitch: hotspot.pitch,
+            viewer.addHotSpot({ pitch: hotspot.pitch,
               yaw: hotspot.yaw,
               type: hotspot.type,
-              text: hotspot.text,
+              cssClass: "custom-hotspot",
+              createTooltipFunc: (i, ar) =>hotspotBuild(i, hotspot.text),
+                text:hotspot.text,
               clickHandlerFunc: () => {
                 const nextImage = virtualTourData.find(img => img.id === hotspot.transitionToImageId);
                 if (nextImage) {
                   loadImageWithWormholeTransition(nextImage);
                 }
               }
+              
             });
           });
         }, 1500);
@@ -214,8 +292,38 @@
         setTimeout(() => overlay.style.pointerEvents = "none", 1000);
       }, 1000);
     }
-
+function hotspotBuild(hotSpotDiv, args) {
+    hotSpotDiv.classList.add('custom-tooltip');
+    var span = document.createElement('span');
+    span.innerHTML = args;
+    hotSpotDiv.appendChild(span);
+    span.style.width = span.scrollWidth - 20 + 'px';
+    span.style.marginLeft = -(span.scrollWidth - hotSpotDiv.offsetWidth) / 2 + 'px';
+    span.style.marginTop = -span.scrollHeight - 12 + 'px';
+}
     loadImageWithWormholeTransition(virtualTourData.find((e) => e.id === 1));
+    // Make buttons work
+document.getElementById('pan-up').addEventListener('click', function(e) {
+    viewer.setPitch(viewer.getPitch() + 10);
+});
+document.getElementById('pan-down').addEventListener('click', function(e) {
+    viewer.setPitch(viewer.getPitch() - 10);
+});
+document.getElementById('pan-left').addEventListener('click', function(e) {
+    viewer.setYaw(viewer.getYaw() - 10);
+});
+document.getElementById('pan-right').addEventListener('click', function(e) {
+    viewer.setYaw(viewer.getYaw() + 10);
+});
+document.getElementById('zoom-in').addEventListener('click', function(e) {
+    viewer.setHfov(viewer.getHfov() - 10);
+});
+document.getElementById('zoom-out').addEventListener('click', function(e) {
+    viewer.setHfov(viewer.getHfov() + 10);
+});
+document.getElementById('fullscreen').addEventListener('click', function(e) {
+    viewer.toggleFullscreen();
+});
   </script>
 </body>
 </html>
